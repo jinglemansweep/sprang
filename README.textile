@@ -11,7 +11,5 @@ You can post text to "sprunge.us" using Sprang in one of three ways:
 * using a command line argument
 * from a text file
 
-@
-cat /etc/issue | sprang
-@
+@cat /etc/issue | sprang@
 
