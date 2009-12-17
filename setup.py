@@ -1,13 +1,15 @@
-import ez_setup
-ez_setup.use_setuptools()
+#import ez_setup, os
+#ez_setup.use_setuptools()
+import os
 from setuptools import setup, find_packages
 setup(
     name = "sprang",
-    version = "0.1",
-    packages = find_packages(),
+    version = "0.11",
     author = "JingleManSweep",
     author_email = "jinglemansweep@gmail.com",
     description = "Helper shell script allowing posting and retrieving of text snippets via 'sprunge.us' pastebin service.",
-    url = "http://code.google.com/p/django-testmaker/",
+    url = "http://github.com/jingleman/sprang",
+    packages = find_packages(),
+    scripts = [os.path.join("bin", "sprang"),],
     include_package_data = True
 )
