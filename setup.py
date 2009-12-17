@@ -4,7 +4,7 @@ import os
 from setuptools import setup, find_packages
 setup(
     name = "sprang",
-    version = "0.11",
+    version = "0.12",
     author = "JingleManSweep",
     author_email = "jinglemansweep@gmail.com",
     description = "Helper shell script allowing posting and retrieving of text snippets via 'sprunge.us' pastebin service.",

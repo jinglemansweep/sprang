@@ -15,7 +15,7 @@ from urllib2 import urlopen, Request
 
 _project_id_ = "sprang"
 _project_name_ = "Sprang"
-__revision__ = "0.1"
+__revision__ = "0.12"
 __docformat__ = "restructuredtext en"
 
 # Configuration
