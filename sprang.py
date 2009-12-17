@@ -1,0 +1,128 @@
+#!/usr/bin/env python
+
+import datetime
+import fcntl
+import logging
+import optparse
+import os
+import subprocess
+import sys
+from urllib import urlencode
+from urllib2 import urlopen, Request
+
+# Globals
+
+_project_name_ = "Sprang"
+__revision__ = "0.1"
+__docformat__ = "restructuredtext en"
+
+# Configuration
+
+logger = logging.getLogger(__name__)
+LOG_HELP = ','.join(["%d=%s" % (4-x, logging.getLevelName((x+1)*10)) for x in xrange(5)])
+#LOG_FORMAT_CONS = '%(levelname)s: %(message)s'
+LOG_FORMAT_CONS = '%(levelname)s: %(message)s'
+LOG_FORMAT_FILE = '%(asctime)s %(name)s[%(process)d] %(levelname)10s %(message)s'
+LOGLEVEL_DICT = {1:50, 2:40, 3:20, 4:10, 5:1}
+DEFAULT_VERBOSITY = 3
+LOG_DIVIDER = "=" * 70
+
+BASE_URL = "http://sprunge.us"
+
+# Configure STDIN to be non-blocking
+
+fcntl.fcntl(sys.stdin, fcntl.F_SETFL, os.O_NONBLOCK) 
+
+# Option Parsing
+
+parser = optparse.OptionParser(usage="%prog or type %prog -h (--help) for help", description=__doc__, version=_project_name_+" v" + __revision__)
+
+parser.add_option("-v", action="count", dest="verbosity", default=DEFAULT_VERBOSITY, help="Verbosity. Add more -v to be more verbose (%s) [default: %%default]" % LOG_HELP)
+parser.add_option("-l", "--logfile", dest="logfile", default=None, help = "Log to file instead of console" )
+
+parser.add_option("-f", "--file", dest="input_file", default=None, help = "File to send to pastebin" )
+parser.add_option("-t", "--text", dest="input_text", default=None, help = "Text to send to pastebin" )
+parser.add_option("-g", "--get", dest="get_code", default=None, help = "Retrieve contents from pastebin using this code" )
+
+(options, args) = parser.parse_args()
+
+input_file, input_text, get_code = options.input_file, options.input_text, options.get_code
+
+# Logging Setup
+
+verbosity = LOGLEVEL_DICT.get(int(options.verbosity), DEFAULT_VERBOSITY)
+
+if options.logfile is None:
+    logging.basicConfig(level=verbosity, format=LOG_FORMAT_CONS)
+else:
+    logfilename = os.path.normpath(options.logfile)
+    logging.basicConfig(level=verbosity, format=LOG_FORMAT_FILE, filename=logfilename, filemode="a")
+    print >> sys.stderr, "Logging to %s" % logfilename
+    
+# Retrieval
+
+if get_code is not None:
+
+    logger.debug("Retrieving '%s'..." % (get_code))
+    url = "%s/%s" % (BASE_URL, get_code)
+    response = urlopen(Request(url)).read()
+    if "not found" in response:
+        sys.exit(1)
+    print response
+    sys.exit(0)
+    
+# Get STDIN
+    
+try:
+    stdin = sys.stdin.read()
+except IOError:
+    stdin = None
+
+# Validation
+
+input_file, input_text = options.input_file, options.input_text
+
+if not any([stdin, input_file, input_text]):
+    logger.error("You must specify pipe to 'stdin', or use the 'file' or 'text' arguments.")
+    sys.exit(1)
+    
+if len([x for x in [stdin, input_file, input_text] if x is not None]) > 1:
+    logger.error("You cannot use the 'file' argument and piped ('stdin') input simultaneously.")
+    sys.exit(1)
+    
+if stdin is not None:
+    mode = "stdin"
+elif input_file is not None:
+    mode = "file"
+elif input_text is not None:
+    mode = "text"   
+
+logger.debug("Mode: %s" % (mode).upper())    
+    
+# Reading Input
+
+content = ""    
+    
+if mode == "file":
+    if os.path.isfile(input_file):
+        content = open(input_file, "r").read()
+    else:
+        logger.error("Cannot open input file.")   
+elif mode == "text":
+    content = input_text
+elif mode == "stdin":
+    content = stdin
+    
+logger.debug("Content:")
+logger.debug(content)    
+
+# Post to Pastebin Provider
+
+params = urlencode([("sprunge", content)])
+response = urlopen(Request(BASE_URL), params).read()
+code = response.split("/")[-1].replace("\n","")
+
+# Log Response/Output
+
+logger.info("Code: %s" % code)
+logger.info("URL: %s/%s" % (BASE_URL, code))
