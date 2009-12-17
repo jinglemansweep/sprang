@@ -7,10 +7,22 @@ h3. Getting Started
 
 You can post text to "sprunge.us" using Sprang in one of three ways:
 
-* via STDIN
-* using a command line argument
-* from a text file
+Via STDIN:
 
-bc. sprang --text
-bc. poo
+bc. cat /etc/issue | sprang
+
+Using a command line argument:
+
+bc. sprang -t "This is my text"
+
+From a text file:
+
+bc. sprang -f /etc/issue
+
+If the post is successful, your Code and URL will be displayed:
+
+bc. INFO: Code: cUGX
+bc. INFO: URL: http://sprunge.us/cUGX
+ 
+
 
