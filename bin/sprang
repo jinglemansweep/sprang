@@ -15,7 +15,7 @@ from urllib2 import urlopen, Request
 
 _project_id_ = "sprang"
 _project_name_ = "Sprang"
-__revision__ = "0.12"
+__revision__ = "0.13"
 __docformat__ = "restructuredtext en"
 
 # Configuration
@@ -117,7 +117,7 @@ elif input_text is not None:
 
 logger.debug("Mode: %s" % (mode).upper())    
     
-# Reading Input
+# Reading input
 
 content = ""    
     
@@ -134,7 +134,7 @@ elif mode == "stdin":
 logger.debug("Content:")
 logger.debug(content)    
 
-# Post to Pastebin Provider
+# Post to pastebin provider
 
 params = urlencode([("sprunge", content)])
 response = urlopen(Request(BASE_URL), params).read()
@@ -146,7 +146,21 @@ cache = open(os.path.join(cache_folder, code), "w")
 cache.write(content)
 cache.close()
 
-# Log Response/Output
+# Output to console
 
 logger.info("Code: %s" % code)
 logger.info("URL: %s/%s" % (BASE_URL, code))
+
+# Output to notifications API
+
+try:
+    import pynotify
+    if pynotify.init(_project_id_):
+        n = pynotify.Notification("New %s Post: %s" % (_project_name_, code), "\nCode: %s\nURL: %s/%s" % (code, BASE_URL, code))
+        n.show()
+    else:
+        logger.debug("Cannot initialise Notification support.")
+except:
+    logger.debug("Notification support is not available.")
+    
+    
