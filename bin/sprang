@@ -1,21 +1,19 @@
 #!/usr/bin/env python
 
-import datetime
 import fcntl
 import logging
 import optparse
 import os
 import shutil
-import subprocess
 import sys
 from urllib import urlencode
 from urllib2 import urlopen, Request
 
 # Globals
 
-_project_id_ = "sprang"
-_project_name_ = "Sprang"
-__revision__ = "0.13"
+project_id = "sprang"
+project_name = "Sprang"
+__revision__ = "0.14"
 __docformat__ = "restructuredtext en"
 
 # Configuration
@@ -31,25 +29,51 @@ LOG_DIVIDER = "=" * 70
 
 BASE_URL = "http://sprunge.us"
 
+# i18n
+
+DEFAULT_LANGUAGE = "en"
+
+STRINGS = {
+    "en": {
+        "NOTICE_CACHE_REMOVED": "Cache has been removed.",
+        "NOTICE_NEW_POST": "New Post",
+        "ERROR_NO_INPUTS": "You must pipe text to 'stdin', or use the 'file' or 'text' arguments.",
+        "ERROR_TOO_MANY_INPUTS": "You can only use a single input method such as 'stdin', 'file' or 'text'.",
+        "ERROR_CANNOT_OPEN_INPUT_FILE": "Cannot open input file.",
+        "ERROR_CANNOT_INIT_NOTIFICATIONS": "Cannot initialise Notification support.",
+        "ERROR_NOTIFICATIONS_UNAVAILABLE": "Notification support is not available.",
+        "LABEL_RETRIEVING": "Retrieving",        
+        "LABEL_MODE": "Mode",
+        "LABEL_CONTENT": "Content",
+        "LABEL_CODE": "Code",
+        "LABEL_URL": "URL"
+    }
+}
+
 # Configure STDIN to be non-blocking
 
 fcntl.fcntl(sys.stdin, fcntl.F_SETFL, os.O_NONBLOCK) 
 
 # Option Parsing
 
-parser = optparse.OptionParser(usage="%prog or type %prog -h (--help) for help", description=__doc__, version=_project_name_+" v" + __revision__)
+parser = optparse.OptionParser(usage="%prog or type %prog -h (--help) for help", description=__doc__, version=project_name+" v" + __revision__)
 
 parser.add_option("-v", action="count", dest="verbosity", default=DEFAULT_VERBOSITY, help="Verbosity. Add more -v to be more verbose (%s) [default: %%default]" % LOG_HELP)
-parser.add_option("-l", "--logfile", dest="logfile", default=None, help = "Log to file instead of console")
+parser.add_option("-z", "--logfile", dest="logfile", default=None, help = "Log to file instead of console")
 
 parser.add_option("-f", "--file", dest="input_file", default=None, help="File to send to pastebin")
 parser.add_option("-t", "--text", dest="input_text", default=None, help="Text to send to pastebin")
 parser.add_option("-g", "--get", dest="get_code", default=None, help="Retrieve contents from pastebin using this code")
 parser.add_option("-d", "--delete-cache", dest="delete_cache", default=False, action="store_true", help="Clear local cached copy of pastebin posts")
+parser.add_option("-l", "--language", dest="language", default=DEFAULT_LANGUAGE, help="Language to use for output messages")
 
 (options, args) = parser.parse_args()
 
-input_file, input_text, get_code, delete_cache = options.input_file, options.input_text, options.get_code, options.delete_cache
+input_file, input_text, get_code, delete_cache, language = options.input_file, options.input_text, options.get_code, options.delete_cache, options.language
+if language not in STRINGS:
+    language = DEFAULT_LANGUAGE
+    
+_t = STRINGS[language]
 
 # Logging Setup
 
@@ -62,14 +86,14 @@ else:
     logging.basicConfig(level=verbosity, format=LOG_FORMAT_FILE, filename=logfilename, filemode="a")
     print >> sys.stderr, "Logging to %s" % logfilename
     
-# Cache Setup
+# Caching
 
-config_folder = os.path.expanduser("~/" + "." + _project_id_)
+config_folder = os.path.expanduser("~/" + "." + project_id)
 cache_folder = os.path.join(config_folder, "cache")
 
 if delete_cache:
     if os.path.exists(cache_folder): shutil.rmtree(cache_folder)
-    logger.debug("Cache removed.")
+    logger.debug(_t["NOTICE_CACHE_REMOVED"])
     sys.exit(0)
     
 try: os.makedirs(config_folder)
@@ -81,7 +105,7 @@ except OSError: pass
 
 if get_code is not None:
 
-    logger.debug("Retrieving '%s'..." % (get_code))
+    logger.debug("%s '%s'..." % (_t["LABEL_RETRIEVING"], get_code))
     url = "%s/%s" % (BASE_URL, get_code)
     response = urlopen(Request(url)).read()
     if "not found" in response:
@@ -101,11 +125,11 @@ except IOError:
 input_file, input_text = options.input_file, options.input_text
 
 if not any([stdin, input_file, input_text]):
-    logger.error("You must pipe text to 'stdin', or use the 'file' or 'text' arguments.")
+    logger.error(_t["ERROR_NO_INPUTS"])
     sys.exit(1)
     
 if len([x for x in [stdin, input_file, input_text] if x is not None]) > 1:
-    logger.error("You can only use a single input method such as 'stdin', 'file' or 'text'.")
+    logger.error(_t["ERROR_TOO_MANY_INPUTS"])
     sys.exit(1)
     
 if stdin is not None:
@@ -115,7 +139,7 @@ elif input_file is not None:
 elif input_text is not None:
     mode = "text"   
 
-logger.debug("Mode: %s" % (mode).upper())    
+logger.debug("%s: %s" % (_t["LABEL_MODE"], mode.upper()))    
     
 # Reading input
 
@@ -125,13 +149,13 @@ if mode == "file":
     if os.path.isfile(input_file):
         content = open(input_file, "r").read()
     else:
-        logger.error("Cannot open input file.")   
+        logger.error(_t["ERROR_CANNOT_OPEN_INPUT_FILE"])   
 elif mode == "text":
     content = input_text
 elif mode == "stdin":
     content = stdin
     
-logger.debug("Content:")
+logger.debug("%s:" % _t["LABEL_CONTENT"])
 logger.debug(content)    
 
 # Post to pastebin provider
@@ -148,19 +172,19 @@ cache.close()
 
 # Output to console
 
-logger.info("Code: %s" % code)
-logger.info("URL: %s/%s" % (BASE_URL, code))
+logger.info("%s: %s" % (_t["LABEL_CODE"], code))
+logger.info("%s: %s/%s" % (_t["LABEL_URL"], BASE_URL, code))
 
 # Output to notifications API
 
 try:
     import pynotify
-    if pynotify.init(_project_id_):
-        n = pynotify.Notification("New %s Post: %s" % (_project_name_, code), "\nCode: %s\nURL: %s/%s" % (code, BASE_URL, code))
+    if pynotify.init(project_id):
+        n = pynotify.Notification("%s: %s" % (_t["NOTICE_NEW_POST"], code), "\n%s: %s\n%s: %s/%s" % (_t["LABEL_CODE"], code, _t["LABEL_URL"], BASE_URL, code))
         n.show()
     else:
-        logger.debug("Cannot initialise Notification support.")
+        logger.debug(_t["ERROR_CANNOT_INIT_NOTIFICATIONS"])
 except:
-    logger.debug("Notification support is not available.")
+    logger.debug(_t["ERROR_NOTIFICATIONS_UNAVAILABLE"])
     
     
