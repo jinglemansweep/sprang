@@ -19,10 +19,16 @@ From a text file:
 
 bc. sprang -f /etc/issue
 
-If the post is successful, your Code and URL will be displayed:
+If the post is successful, your code and URL will be displayed:
 
 bc. INFO: Code: cUGX
-bc. INFO: URL: http://sprunge.us/cUGX
+INFO: URL: http://sprunge.us/cUGX
  
+You can either copy and paste the code or URL into an email or instant message,
+or you could just read out the code to your friend or co-worker.
+
+They can quickly receive the text someone has posted using this code:
+
+bc. sprang -g cUGX
 
 
