@@ -1,0 +1,17 @@
+h2. Sprang
+
+Sprang is a small script that interacts with the "sprunge.us" command line,
+terminal "pastebin" web service.
+
+h3. Getting Started
+
+You can post text to "sprunge.us" using Sprang in one of three ways:
+
+* via STDIN
+* using a command line argument
+* from a text file
+
+@
+cat /etc/issue | sprang
+@
+
