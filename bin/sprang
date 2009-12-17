@@ -5,6 +5,7 @@ import fcntl
 import logging
 import optparse
 import os
+import shutil
 import subprocess
 import sys
 from urllib import urlencode
@@ -12,6 +13,7 @@ from urllib2 import urlopen, Request
 
 # Globals
 
+_project_id_ = "sprang"
 _project_name_ = "Sprang"
 __revision__ = "0.1"
 __docformat__ = "restructuredtext en"
@@ -38,15 +40,16 @@ fcntl.fcntl(sys.stdin, fcntl.F_SETFL, os.O_NONBLOCK)
 parser = optparse.OptionParser(usage="%prog or type %prog -h (--help) for help", description=__doc__, version=_project_name_+" v" + __revision__)
 
 parser.add_option("-v", action="count", dest="verbosity", default=DEFAULT_VERBOSITY, help="Verbosity. Add more -v to be more verbose (%s) [default: %%default]" % LOG_HELP)
-parser.add_option("-l", "--logfile", dest="logfile", default=None, help = "Log to file instead of console" )
+parser.add_option("-l", "--logfile", dest="logfile", default=None, help = "Log to file instead of console")
 
-parser.add_option("-f", "--file", dest="input_file", default=None, help = "File to send to pastebin" )
-parser.add_option("-t", "--text", dest="input_text", default=None, help = "Text to send to pastebin" )
-parser.add_option("-g", "--get", dest="get_code", default=None, help = "Retrieve contents from pastebin using this code" )
+parser.add_option("-f", "--file", dest="input_file", default=None, help="File to send to pastebin")
+parser.add_option("-t", "--text", dest="input_text", default=None, help="Text to send to pastebin")
+parser.add_option("-g", "--get", dest="get_code", default=None, help="Retrieve contents from pastebin using this code")
+parser.add_option("-d", "--delete-cache", dest="delete_cache", default=False, action="store_true", help="Clear local cached copy of pastebin posts")
 
 (options, args) = parser.parse_args()
 
-input_file, input_text, get_code = options.input_file, options.input_text, options.get_code
+input_file, input_text, get_code, delete_cache = options.input_file, options.input_text, options.get_code, options.delete_cache
 
 # Logging Setup
 
@@ -59,6 +62,21 @@ else:
     logging.basicConfig(level=verbosity, format=LOG_FORMAT_FILE, filename=logfilename, filemode="a")
     print >> sys.stderr, "Logging to %s" % logfilename
     
+# Cache Setup
+
+config_folder = os.path.expanduser("~/" + "." + _project_id_)
+cache_folder = os.path.join(config_folder, "cache")
+
+if delete_cache:
+    if os.path.exists(cache_folder): shutil.rmtree(cache_folder)
+    logger.debug("Cache removed.")
+    sys.exit(0)
+    
+try: os.makedirs(config_folder)
+except OSError: pass
+try: os.makedirs(cache_folder)
+except OSError: pass
+        
 # Retrieval
 
 if get_code is not None:
@@ -83,11 +101,11 @@ except IOError:
 input_file, input_text = options.input_file, options.input_text
 
 if not any([stdin, input_file, input_text]):
-    logger.error("You must specify pipe to 'stdin', or use the 'file' or 'text' arguments.")
+    logger.error("You must pipe text to 'stdin', or use the 'file' or 'text' arguments.")
     sys.exit(1)
     
 if len([x for x in [stdin, input_file, input_text] if x is not None]) > 1:
-    logger.error("You cannot use the 'file' argument and piped ('stdin') input simultaneously.")
+    logger.error("You can only use a single input method such as 'stdin', 'file' or 'text'.")
     sys.exit(1)
     
 if stdin is not None:
@@ -121,6 +139,12 @@ logger.debug(content)
 params = urlencode([("sprunge", content)])
 response = urlopen(Request(BASE_URL), params).read()
 code = response.split("/")[-1].replace("\n","")
+
+# Cache 
+
+cache = open(os.path.join(cache_folder, code), "w")
+cache.write(content)
+cache.close()
 
 # Log Response/Output
 
