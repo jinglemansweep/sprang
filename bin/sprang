@@ -13,7 +13,7 @@ from urllib2 import urlopen, Request
 
 project_id = "sprang"
 project_name = "Sprang"
-__revision__ = "0.14"
+__revision__ = "0.15"
 __docformat__ = "restructuredtext en"
 
 # Configuration
@@ -66,10 +66,19 @@ parser.add_option("-t", "--text", dest="input_text", default=None, help="Text to
 parser.add_option("-g", "--get", dest="get_code", default=None, help="Retrieve contents from pastebin using this code")
 parser.add_option("-d", "--delete-cache", dest="delete_cache", default=False, action="store_true", help="Clear local cached copy of pastebin posts")
 parser.add_option("-l", "--language", dest="language", default=DEFAULT_LANGUAGE, help="Language to use for output messages")
+parser.add_option("-s", "--short", dest="short_output", default=False, action="store_true", help="Output only pastebin code (shorter output)")
+parser.add_option("-n", "--notifications", dest="notifications_enabled", default=False, action="store_true", help="Output returned pastebin codes using system graphical notifications")
 
 (options, args) = parser.parse_args()
 
-input_file, input_text, get_code, delete_cache, language = options.input_file, options.input_text, options.get_code, options.delete_cache, options.language
+input_file = options.input_file
+input_text = options.input_text
+get_code = options.get_code
+delete_cache = options.delete_cache
+language = options.language
+short_output = options.short_output
+notifications_enabled = options.notifications_enabled
+
 if language not in STRINGS:
     language = DEFAULT_LANGUAGE
     
@@ -149,7 +158,8 @@ if mode == "file":
     if os.path.isfile(input_file):
         content = open(input_file, "r").read()
     else:
-        logger.error(_t["ERROR_CANNOT_OPEN_INPUT_FILE"])   
+        logger.error(_t["ERROR_CANNOT_OPEN_INPUT_FILE"]) 
+        sys.exit(1)  
 elif mode == "text":
     content = input_text
 elif mode == "stdin":
@@ -172,19 +182,23 @@ cache.close()
 
 # Output to console
 
-logger.info("%s: %s" % (_t["LABEL_CODE"], code))
-logger.info("%s: %s/%s" % (_t["LABEL_URL"], BASE_URL, code))
+if short_output:
+    print code
+else:
+    logger.info("%s: %s" % (_t["LABEL_CODE"], code))
+    logger.info("%s: %s/%s" % (_t["LABEL_URL"], BASE_URL, code))
 
 # Output to notifications API
 
-try:
-    import pynotify
-    if pynotify.init(project_id):
-        n = pynotify.Notification("%s: %s" % (_t["NOTICE_NEW_POST"], code), "\n%s: %s\n%s: %s/%s" % (_t["LABEL_CODE"], code, _t["LABEL_URL"], BASE_URL, code))
-        n.show()
-    else:
-        logger.debug(_t["ERROR_CANNOT_INIT_NOTIFICATIONS"])
-except:
-    logger.debug(_t["ERROR_NOTIFICATIONS_UNAVAILABLE"])
+if notifications_enabled:
+    try:
+        import pynotify
+        if pynotify.init(project_id):
+            n = pynotify.Notification("%s: %s" % (_t["NOTICE_NEW_POST"], code), "\n%s: %s\n%s: %s/%s" % (_t["LABEL_CODE"], code, _t["LABEL_URL"], BASE_URL, code))
+            n.show()
+        else:
+            logger.debug(_t["ERROR_CANNOT_INIT_NOTIFICATIONS"])
+    except:
+        logger.debug(_t["ERROR_NOTIFICATIONS_UNAVAILABLE"])
     
     
