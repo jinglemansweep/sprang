@@ -116,8 +116,9 @@ if get_code is not None:
 
     logger.debug("%s '%s'..." % (_t["LABEL_RETRIEVING"], get_code))
     url = "%s/%s" % (BASE_URL, get_code)
+    logger.debug("%s: %s" % (_t["LABEL_URL"], url))
     response = urlopen(Request(url)).read()
-    if "not found" in response:
+    if "%s not found" % (get_code) in response:
         sys.exit(1)
     print response
     sys.exit(0)
