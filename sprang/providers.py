@@ -64,7 +64,8 @@ class SprungePastebin(Pastebin):
     """ Controller for 'sprunge.us' Pastebin """
 
     def __init__(self):
-        """ Constructor """     
+        """ Constructor """ 
+        super(SprungePastebin, self).__init__()    
         self.provider_url = "http://sprunge.us"
 
     def post_text(self, text):   
@@ -72,7 +73,9 @@ class SprungePastebin(Pastebin):
         params = {"sprunge": text}        
         outputs = {
             "code": lambda x: x.split("/")[-1].replace("\n",""),
-            "url": lambda x: "%s/%s" % (self.provider_url, x.split("/")[-1].replace("\n","")),
+            "url": lambda x: "%s/%s" % (self.provider_url,
+                                        x.split("/")[-1].replace("\n","")
+            ),
             "success": lambda x: "http://sprunge.us" in x
         }
         response = self._request(params=params, outputs=outputs)
