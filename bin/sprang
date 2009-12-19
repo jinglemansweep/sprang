@@ -1,5 +1,52 @@
 #!/usr/bin/env python
 
+"""
+
+SYNOPSIS
+
+    sprang [-g,--get] [-t,--text] [-f,--file] [-l,--language],
+           [-s,--short] [-n,--notifications] [--version]
+
+DESCRIPTION
+
+    Sprang is a small script that interacts with the "sprunge.us" command line
+    terminal "pastebin" web service.
+
+EXAMPLES
+
+    sprang -t "This is my text"
+    sprang -f /etc/issue
+    cat /var/log/mail | grep "test@test.com" | sprang
+
+AUTHOR
+
+    JingleManSweep <jinglemansweep@gmail.com>
+
+LICENSE
+
+    Sprang
+
+    Copyright (C) 2009 JingleManSweep <jinglemansweep@gmail.com>
+
+    This program is free software; you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by the
+    Free Software Foundation; either version 2 of the License, or (at your 
+    option) any later version.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+    or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for 
+    more details. You should have received a copy of the GNU General Public
+    License along with this program; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+VERSION
+
+    0.16
+    
+"""
+
+import ConfigParser
 import fcntl
 import logging
 import optparse
@@ -9,14 +56,23 @@ import sys
 from urllib import urlencode
 from urllib2 import urlopen, Request
 
+
 # Globals
+
 
 project_id = "sprang"
 project_name = "Sprang"
-__revision__ = "0.15"
+__revision__ = "0.16"
 __docformat__ = "restructuredtext en"
 
-# Configuration
+# Configure STDIN to be non-blocking
+
+
+fcntl.fcntl(sys.stdin, fcntl.F_SETFL, os.O_NONBLOCK) 
+
+
+# Base Configuration
+
 
 logger = logging.getLogger(__name__)
 LOG_HELP = ','.join(["%d=%s" % (4-x, logging.getLevelName((x+1)*10)) for x in xrange(5)])
@@ -27,19 +83,23 @@ LOGLEVEL_DICT = {1:50, 2:40, 3:20, 4:10, 5:1}
 DEFAULT_VERBOSITY = 3
 LOG_DIVIDER = "=" * 70
 
-BASE_URL = "http://sprunge.us"
+cfg = ConfigParser.RawConfigParser()
 
-# i18n
+
+# I18N
+
 
 DEFAULT_LANGUAGE = "en"
 
 STRINGS = {
     "en": {
         "NOTICE_CACHE_REMOVED": "Cache has been removed.",
+        "NOTICE_PURGE_ALL": "All local configuration and cache data has been removed.",
         "NOTICE_NEW_POST": "New Post",
         "ERROR_NO_INPUTS": "You must pipe text to 'stdin', or use the 'file' or 'text' arguments.",
         "ERROR_TOO_MANY_INPUTS": "You can only use a single input method such as 'stdin', 'file' or 'text'.",
         "ERROR_CANNOT_OPEN_INPUT_FILE": "Cannot open input file.",
+        "ERROR_CONNECTION_PROBLEM": "Cannot communicate with Pastebin provider.",
         "ERROR_CANNOT_INIT_NOTIFICATIONS": "Cannot initialise Notification support.",
         "ERROR_NOTIFICATIONS_UNAVAILABLE": "Notification support is not available.",
         "LABEL_RETRIEVING": "Retrieving",        
@@ -50,11 +110,53 @@ STRINGS = {
     }
 }
 
-# Configure STDIN to be non-blocking
 
-fcntl.fcntl(sys.stdin, fcntl.F_SETFL, os.O_NONBLOCK) 
+# Defaults
+
+
+DEFAULT_CONFIGURATION = {
+    "base_url": "http://sprunge.us",
+    "cache_history": True,
+    "short_output": False,
+    "notifications": False
+}
+
+
+# Configuration & Caching
+
+
+config_folder = os.path.expanduser("~/" + "." + project_id)
+config_file = os.path.join(config_folder, "config.ini")
+cache_folder = os.path.join(config_folder, "cache")
+    
+try: os.makedirs(config_folder)
+except OSError: pass
+try: os.makedirs(cache_folder)
+except OSError: pass
+           
+if os.path.isfile(config_file):
+    cfg.read(config_file)
+else:
+    cfg.add_section("main")
+    for k, v in DEFAULT_CONFIGURATION.iteritems():
+        cfg.set("main", k, v)
+    with open(config_file, "wb") as cfgfh:
+        cfg.write(cfgfh)
+    cfg.read(config_file) 
+
+cfg_base_url = cfg.get("main", "base_url")
+cfg_cache_history = cfg.getboolean("main", "cache_history")
+cfg_short_output = cfg.getboolean("main", "short_output")
+cfg_notifications = cfg.getboolean("main", "notifications")
+
+logger.debug("Cfg: Base URL: %s" % (cfg_base_url))
+logger.debug("Cfg: Cache History: %s" % (cfg_cache_history))
+logger.debug("Cfg: Short Output: %s" % (cfg_short_output))
+logger.debug("Cfg: Notifications: %s" % (cfg_notifications))
+
 
 # Option Parsing
+
 
 parser = optparse.OptionParser(usage="%prog or type %prog -h (--help) for help", description=__doc__, version=project_name+" v" + __revision__)
 
@@ -64,27 +166,35 @@ parser.add_option("-z", "--logfile", dest="logfile", default=None, help = "Log t
 parser.add_option("-f", "--file", dest="input_file", default=None, help="File to send to pastebin")
 parser.add_option("-t", "--text", dest="input_text", default=None, help="Text to send to pastebin")
 parser.add_option("-g", "--get", dest="get_code", default=None, help="Retrieve contents from pastebin using this code")
-parser.add_option("-d", "--delete-cache", dest="delete_cache", default=False, action="store_true", help="Clear local cached copy of pastebin posts")
 parser.add_option("-l", "--language", dest="language", default=DEFAULT_LANGUAGE, help="Language to use for output messages")
-parser.add_option("-s", "--short", dest="short_output", default=False, action="store_true", help="Output only pastebin code (shorter output)")
-parser.add_option("-n", "--notifications", dest="notifications_enabled", default=False, action="store_true", help="Output returned pastebin codes using system graphical notifications")
+parser.add_option("-s", "--short", dest="short_output", default=cfg_short_output, action="store_true", help="Output only pastebin code (shorter output)")
+parser.add_option("-n", "--notifications", dest="notifications_enabled", default=cfg_notifications, action="store_true", help="Output returned pastebin codes using system graphical notifications")
+parser.add_option("", "--delete-cache", dest="delete_cache", default=False, action="store_true", help="Clear local cached copy of pastebin posts")
+parser.add_option("", "--purge-all", dest="purge_all", default=False, action="store_true", help="Removes all configuration and cache data (used for testing)")
 
 (options, args) = parser.parse_args()
 
 input_file = options.input_file
 input_text = options.input_text
 get_code = options.get_code
-delete_cache = options.delete_cache
 language = options.language
 short_output = options.short_output
 notifications_enabled = options.notifications_enabled
+delete_cache = options.delete_cache
+purge_all = options.purge_all
+
+
+# Language
+
 
 if language not in STRINGS:
     language = DEFAULT_LANGUAGE
     
 _t = STRINGS[language]
 
+
 # Logging Setup
+
 
 verbosity = LOGLEVEL_DICT.get(int(options.verbosity), DEFAULT_VERBOSITY)
 
@@ -94,51 +204,66 @@ else:
     logfilename = os.path.normpath(options.logfile)
     logging.basicConfig(level=verbosity, format=LOG_FORMAT_FILE, filename=logfilename, filemode="a")
     print >> sys.stderr, "Logging to %s" % logfilename
-    
-# Caching
 
-config_folder = os.path.expanduser("~/" + "." + project_id)
-cache_folder = os.path.join(config_folder, "cache")
+
+# Cache Deletion
+
 
 if delete_cache:
     if os.path.exists(cache_folder): shutil.rmtree(cache_folder)
     logger.debug(_t["NOTICE_CACHE_REMOVED"])
     sys.exit(0)
-    
-try: os.makedirs(config_folder)
-except OSError: pass
-try: os.makedirs(cache_folder)
-except OSError: pass
+
+      
+# Purge All
+
+
+if purge_all:
+    if os.path.exists(config_folder): shutil.rmtree(config_folder)
+    logger.debug(_t["NOTICE_PURGE_ALL"])
+    sys.exit(0)      
+
         
 # Retrieval
+
 
 if get_code is not None:
 
     logger.debug("%s '%s'..." % (_t["LABEL_RETRIEVING"], get_code))
-    url = "%s/%s" % (BASE_URL, get_code)
+    url = "%s/%s" % (cfg_base_url, get_code)
     logger.debug("%s: %s" % (_t["LABEL_URL"], url))
-    response = urlopen(Request(url)).read()
+    try:
+        response = urlopen(Request(url)).read()
+    except:
+        logger.error(_t["ERROR_CONNECTION_PROBLEM"])
+        sys.exit(1)
     if "%s not found" % (get_code) in response:
         sys.exit(1)
     print response
     sys.exit(0)
+
     
 # Get STDIN
+
     
 try:
     stdin = sys.stdin.read()
 except IOError:
     stdin = None
 
+
 # Validation
+
 
 input_file, input_text = options.input_file, options.input_text
 
-if not any([stdin, input_file, input_text]):
+count_inputs = len([x for x in [stdin, input_file, input_text] if x is not None])
+
+if count_inputs < 1:
     logger.error(_t["ERROR_NO_INPUTS"])
     sys.exit(1)
     
-if len([x for x in [stdin, input_file, input_text] if x is not None]) > 1:
+if count_inputs > 1:
     logger.error(_t["ERROR_TOO_MANY_INPUTS"])
     sys.exit(1)
     
@@ -151,7 +276,9 @@ elif input_text is not None:
 
 logger.debug("%s: %s" % (_t["LABEL_MODE"], mode.upper()))    
     
+
 # Reading input
+
 
 content = ""    
     
@@ -169,27 +296,40 @@ elif mode == "stdin":
 logger.debug("%s:" % _t["LABEL_CONTENT"])
 logger.debug(content)    
 
+
 # Post to pastebin provider
 
+
 params = urlencode([("sprunge", content)])
-response = urlopen(Request(BASE_URL), params).read()
-code = response.split("/")[-1].replace("\n","")
+try:
+    response = urlopen(Request(cfg_base_url), params).read()
+    code = response.split("/")[-1].replace("\n","")
+except:
+    logger.error(_t["ERROR_CONNECTION_PROBLEM"])
+    sys.exit(1)
 
-# Cache 
 
-cache = open(os.path.join(cache_folder, code), "w")
-cache.write(content)
-cache.close()
+# Cache
 
-# Output to console
+
+if cfg_cache_history:
+    cache = open(os.path.join(cache_folder, code), "w")
+    cache.write(content)
+    cache.close()
+
+
+# Output To Console
+
 
 if short_output:
     print code
 else:
     logger.info("%s: %s" % (_t["LABEL_CODE"], code))
-    logger.info("%s: %s/%s" % (_t["LABEL_URL"], BASE_URL, code))
+    logger.info("%s: %s/%s" % (_t["LABEL_URL"], cfg_base_url, code))
+
 
 # Output to notifications API
+
 
 if notifications_enabled:
     try:
