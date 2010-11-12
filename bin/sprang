@@ -50,7 +50,11 @@ import os
 import shutil
 import sys
 
-from sprang.providers import SprungePastebin
+from mimetypes import guess_type
+
+from sprang.providers.base import Provider
+from sprang.providers.pastebin import *
+from sprang.providers.imagehost import *
 
 # Globals
 
@@ -95,7 +99,8 @@ STRINGS = {
         "LABEL_MODE": "Mode",
         "LABEL_CONTENT": "Content",
         "LABEL_CODE": "Code",
-        "LABEL_URL": "URL"
+        "LABEL_URL": "URL",
+        "LABEL_MIMETYPE": "Mimetype"
     }
 }
 
@@ -144,14 +149,14 @@ parser = optparse.OptionParser(usage="%prog or type %prog -h (--help) for help",
 
 parser.add_option("-v", action="count", dest="verbosity", default=DEFAULT_VERBOSITY, help="Verbosity. Add more -v to be more verbose (%s) [default: %%default]" % LOG_HELP)
 parser.add_option("-z", "--logfile", dest="logfile", default=None, help = "Log to file instead of console")
-
-parser.add_option("-f", "--file", dest="input_file", default=None, help="File to send to pastebin")
-parser.add_option("-t", "--text", dest="input_text", default=None, help="Text to send to pastebin")
-parser.add_option("-g", "--get", dest="get_code", default=None, help="Retrieve contents from pastebin using this code")
+parser.add_option("-p", "--provider", dest="provider", default=None, help="Hosting provider to use")
+parser.add_option("-f", "--file", dest="input_file", default=None, help="File to send to provider")
+parser.add_option("-t", "--text", dest="input_text", default=None, help="Text to send to provider")
+parser.add_option("-g", "--get", dest="get_code", default=None, help="Retrieve contents from provider using this code")
 parser.add_option("-l", "--language", dest="language", default=DEFAULT_LANGUAGE, help="Language to use for output messages")
-parser.add_option("-s", "--short", dest="short_output", default=cfg_short_output, action="store_true", help="Output only pastebin code (shorter output)")
-parser.add_option("-n", "--notifications", dest="notifications_enabled", default=cfg_notifications, action="store_true", help="Output returned pastebin codes using system graphical notifications")
-parser.add_option("", "--delete-cache", dest="delete_cache", default=False, action="store_true", help="Clear local cached copy of pastebin posts")
+parser.add_option("-s", "--short", dest="short_output", default=cfg_short_output, action="store_true", help="Output only provider code (shorter output)")
+parser.add_option("-n", "--notifications", dest="notifications_enabled", default=cfg_notifications, action="store_true", help="Output returned provider codes using system graphical notifications")
+parser.add_option("", "--delete-cache", dest="delete_cache", default=False, action="store_true", help="Clear local cached copy of provider posts")
 parser.add_option("", "--purge-all", dest="purge_all", default=False, action="store_true", help="Removes all configuration and cache data (used for testing)")
 
 (options, args) = parser.parse_args()
@@ -167,7 +172,18 @@ purge_all = options.purge_all
 
 # Pastebin Provider
 
-pastebin = SprungePastebin()
+provider_types = Provider.__subclasses__()
+providers = {}
+
+for pt in provider_types:
+    mimetypes = pt._mimetypes_
+    for mt in mimetypes:
+        if not providers.get("mt"):
+            providers[mt] = {}
+        providers[mt][pt._name_] = pt
+
+provider = providers.get("text/plain").get("Sprunge")
+provider_inst = provider()
 
 # Language
 
@@ -244,10 +260,12 @@ logger.debug("%s: %s" % (_t["LABEL_MODE"], mode.upper()))
 
 # Reading Input
 
+mimetype = "text/plain"
 content = ""    
     
 if mode == "file":
     if os.path.isfile(input_file):
+        mimetype = guess_type(input_file)[0]
         content = open(input_file, "r").read()
     else:
         logger.error(_t["ERROR_CANNOT_OPEN_INPUT_FILE"]) 
@@ -257,12 +275,14 @@ elif mode == "text":
 elif mode == "stdin":
     content = stdin
     
+logger.debug("%s: %s" % (_t["LABEL_MIMETYPE"], mimetype))
+
 logger.debug("%s:" % _t["LABEL_CONTENT"])
 logger.debug(content)    
 
-# Post to Pastebin Provider
+# Post to Provider
 
-result = pastebin.post_text(content)
+result = provider_inst.post_data(content, mimetype)
 if result.get("success"):
     code = result.get("code")
     url = result.get("url")

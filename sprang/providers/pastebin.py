@@ -24,53 +24,26 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 from urllib import urlencode
 from urllib2 import urlopen, Request
 
-
-class Pastebin(object):
-
-    """ Base Pastebin Controller """
-    
-    def __init__(self):
-        """ Constructor """
-        self.provider_url = ""
-       
-    def _request(self, url=None, params=None, outputs=None):        
-        """ Make HTTP Request """        
-        if url is None:
-            url = self.provider_url
-        if outputs is None:
-            outputs = {}        
-        if params is not None:    
-            response_raw = urlopen(Request(url), urlencode(params)).read()
-        else:
-            response_raw = urlopen(Request(url)).read()
-        output = {
-            "raw": response_raw
-        }
-        for key, func in outputs.iteritems():
-            output[key] = func(response_raw)                      
-        return output
-
-    def post_text(self, text):    
-        """ Post Text to Pastebin Provider """        
-        pass        
-    
-    def get_text(self, code):    
-        """ Get Text from Pastebin Provider """        
-        pass
+from base import Provider
         
         
-class SprungePastebin(Pastebin):
+class SprungePastebin(Provider):
     
     """ Controller for 'sprunge.us' Pastebin """
+
+    _code_ = "sprunge"
+    _name_ = "Sprunge"
+    _url_ = ""
+    _mimetypes_ = ["text/plain", "text/xml"]
 
     def __init__(self):
         """ Constructor """ 
         super(SprungePastebin, self).__init__()    
         self.provider_url = "http://sprunge.us"
 
-    def post_text(self, text):   
-        """ Post Text to Pastebin Provider """
-        params = {"sprunge": text}        
+    def post_data(self, data, mimetype=None):   
+        """ Post Data to Pastebin Provider """
+        params = {"sprunge": data}        
         outputs = {
             "code": lambda x: x.split("/")[-1].replace("\n",""),
             "url": lambda x: "%s/%s" % (self.provider_url,
@@ -81,8 +54,8 @@ class SprungePastebin(Pastebin):
         response = self._request(params=params, outputs=outputs)
         return response
         
-    def get_text(self, code):
-        """ Get Text from Pastebin Provider """
+    def get_data(self, data):
+        """ Get Data from Pastebin Provider """
         url = "%s/%s" % (self.provider_url, code)
         response = self._request(url=url)
         return response.get("raw")
