@@ -100,7 +100,8 @@ STRINGS = {
         "LABEL_CONTENT": "Content",
         "LABEL_CODE": "Code",
         "LABEL_URL": "URL",
-        "LABEL_MIMETYPE": "Mimetype"
+        "LABEL_MIMETYPE": "Mimetype",
+        "LABEL_PROVIDER": "Provider"
     }
 }
 
@@ -170,7 +171,7 @@ notifications_enabled = options.notifications_enabled
 delete_cache = options.delete_cache
 purge_all = options.purge_all
 
-# Pastebin Provider
+# Providers
 
 provider_types = Provider.__subclasses__()
 providers = {}
@@ -179,11 +180,8 @@ for pt in provider_types:
     mimetypes = pt._mimetypes_
     for mt in mimetypes:
         if not providers.get("mt"):
-            providers[mt] = {}
-        providers[mt][pt._name_] = pt
-
-provider = providers.get("text/plain").get("Sprunge")
-provider_inst = provider()
+            providers[mt] = []
+        providers[mt].append(pt)
 
 # Language
 
@@ -266,7 +264,7 @@ content = ""
 if mode == "file":
     if os.path.isfile(input_file):
         mimetype = guess_type(input_file)[0]
-        content = open(input_file, "r").read()
+        content = open(input_file, "rb").read()
     else:
         logger.error(_t["ERROR_CANNOT_OPEN_INPUT_FILE"]) 
         sys.exit(1)  
@@ -277,12 +275,14 @@ elif mode == "stdin":
     
 logger.debug("%s: %s" % (_t["LABEL_MIMETYPE"], mimetype))
 
-logger.debug("%s:" % _t["LABEL_CONTENT"])
-logger.debug(content)    
-
 # Post to Provider
 
+provider = providers.get(mimetype)[0]
+logger.debug("%s: %s" %(_t["LABEL_PROVIDER"], provider._name_))
+provider_inst = provider()
+
 result = provider_inst.post_data(content, mimetype)
+
 if result.get("success"):
     code = result.get("code")
     url = result.get("url")

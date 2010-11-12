@@ -22,7 +22,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 
 from urllib import urlencode
-from urllib2 import urlopen, Request
+from urllib2 import urlopen, Request, HTTPError
+
+from poster.encode import multipart_encode
+from poster.streaminghttp import register_openers
 
 
 class Provider(object):
@@ -33,21 +36,32 @@ class Provider(object):
         """ Constructor """
         self.provider_url = ""
        
-    def _request(self, url=None, params=None, outputs=None):        
+    def _request(self, url=None, params=None, outputs=None, multipart=False):        
         """ Make HTTP Request """        
         if url is None:
             url = self.provider_url
         if outputs is None:
-            outputs = {}        
-        if params is not None:    
-            response_raw = urlopen(Request(url), urlencode(params)).read()
-        else:
-            response_raw = urlopen(Request(url)).read()
+            outputs = {}
+        try:
+            if params is not None:    
+                if multipart:
+                    register_openers()
+                    datagen, headers = multipart_encode(params)
+                    response_raw = urlopen(Request(url, datagen, headers)).read()
+                else:
+                    response_raw = urlopen(Request(url), urlencode(params)).read()
+            else:
+                response_raw = urlopen(Request(url)).read()
+        except HTTPError:
+            response_raw = ""
         output = {
             "raw": response_raw
         }
-        for key, func in outputs.iteritems():
-            output[key] = func(response_raw)                      
+        try:
+            for key, func in outputs.iteritems():
+                output[key] = func(response_raw)
+        except:
+            pass                      
         return output
 
     def post_data(self, data, mimetype=None):    

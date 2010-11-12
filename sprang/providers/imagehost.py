@@ -20,7 +20,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
     
 """
 
-
+import base64
+import json
 from urllib import urlencode
 from urllib2 import urlopen, Request
 
@@ -40,19 +41,18 @@ class ImgurImageHost(Provider):
     def __init__(self):
         """ Constructor """ 
         super(ImgurImageHost, self).__init__()    
-        self.provider_url = "http://imgur.com"
+        self.provider_url = "http://api.imgur.com/2/upload.json"
 
     def post_data(self, data, mimetype=None):   
         """ Post Data to Image Host Provider """
-        params = {"sprunge": data}        
+        encoded_data = base64.b64encode(data)
+        params = {"image": encoded_data, "type": "file", "key": self._api_key_}
         outputs = {
-            "code": lambda x: x.split("/")[-1].replace("\n",""),
-            "url": lambda x: "%s/%s" % (self.provider_url,
-                                        x.split("/")[-1].replace("\n","")
-            ),
-            "success": lambda x: "http://sprunge.us" in x
+            "code": lambda x: json.loads(x).get("upload").get("image").get("hash"),
+            "url": lambda x: json.loads(x).get("upload").get("links").get("original"),
+            "success": lambda x: json.loads(x).get("upload")
         }
-        response = self._request(params=params, outputs=outputs)
+        response = self._request(params=params, outputs=outputs, multipart=True)
         return response
         
     def get_data(self, data):
